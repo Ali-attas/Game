@@ -1,12 +1,19 @@
 const express = require('express');
 const app = express();
 const server = require('http').createServer(app);
-const io = require('socket.io')(server);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "*", // السماح لجميع المصادر
+    methods: ["GET", "POST"]
+  }
+});
+const path = require('path');
 const fs = require('fs');
 
-app.use(express.static('public'));
-app.use('/socket.io', express.static(__dirname + '/node_modules/socket.io/client-dist/'));
+// تقديم الملفات الثابتة
+app.use(express.static(path.join(__dirname, 'public')));
 
+// إعدادات العالم
 const worldConfig = {
   width: 4000,
   height: 4000,
@@ -16,17 +23,18 @@ const worldConfig = {
 };
 
 const TILES_FILE = 'tiles.json';
-let globalTiles = new Map(); // { tileKey: { playerId: string, color: string } }
+let globalTiles = new Map();
 let players = {};
 
+// تحميل وحفظ المربعات
 function loadTiles() {
   try {
     if (fs.existsSync(TILES_FILE)) {
       const data = fs.readFileSync(TILES_FILE, 'utf8');
-      return new Map(JSON.parse(data).map(([key, tile]) => [key, tile]));
+      return new Map(JSON.parse(data));
     }
   } catch (err) {
-    console.error('Error loading tiles:', err);
+    console.error('خطأ في تحميل المربعات:', err);
   }
   return new Map();
 }
@@ -36,8 +44,9 @@ function saveTiles() {
   fs.writeFileSync(TILES_FILE, JSON.stringify(tilesArray));
 }
 
+// أحداث Socket.io
 io.on('connection', (socket) => {
-  console.log('✅ User connected:', socket.id);
+  console.log('✅ لاعب متصل:', socket.id);
 
   players[socket.id] = {
     x: worldConfig.spawnX,
@@ -51,7 +60,7 @@ io.on('connection', (socket) => {
     id: socket.id,
     players: JSON.parse(JSON.stringify(players)),
     worldConfig,
-    tiles: Array.from(globalTiles.entries()).map(([key, tile]) => [key, tile.color])
+    tiles: Array.from(globalTiles.entries())
   });
 
   socket.on('update', (data) => {
@@ -65,7 +74,6 @@ io.on('connection', (socket) => {
     const tileY = Math.floor(data.y / worldConfig.gridSize);
     const tileKey = `${tileX}:${tileY}`;
 
-    // تحديث المربع بلون اللاعب الحالي
     globalTiles.set(tileKey, {
       playerId: socket.id,
       color: player.color
@@ -75,31 +83,30 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const playerId = socket.id;
     
-    // إزالة جميع المربعات التي لونها هذا اللاعب
     globalTiles.forEach((tile, key) => {
-      if (tile.playerId === playerId) {
-        globalTiles.delete(key);
-      }
+      if (tile.playerId === playerId) globalTiles.delete(key);
     });
 
     delete players[playerId];
     saveTiles();
-    console.log('❌ User disconnected:', playerId);
+    console.log('❌ لاعب مغادر:', playerId);
   });
 });
 
+// تحديث حالة اللعبة كل 50 مللي ثانية
 setInterval(() => {
-  const tilesToSend = Array.from(globalTiles.entries()).map(([key, tile]) => [key, tile.color]);
   io.emit('gameState', {
     players: JSON.parse(JSON.stringify(players)),
-    tiles: tilesToSend
+    tiles: Array.from(globalTiles.entries())
   });
 }, 50);
 
+// حفظ المربعات كل 30 ثانية
 setInterval(saveTiles, 30000);
 
-server.listen(3000, () => {
+// تشغيل الخادم على المنفذ المحدد
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
   globalTiles = loadTiles();
-  console.log('🚀 Server running on http://localhost:3000');
+  console.log(`🚀 الخادم يعمل على المنفذ ${PORT}`);
 });
-
