@@ -4,13 +4,11 @@ const ctx = canvas.getContext('2d');
 const gridSize = 40;
 
 let myId = null;
-let gameState = {
-  players: {},
-  tiles: new Map()
-};
+let gameState = { players: {}, tiles: new Map() };
 let targetPos = { x: 0, y: 0 };
 let smoothPlayers = {};
 
+// تكييف حجم Canvas
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -18,6 +16,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// تحديث موقع الماوس
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   targetPos = {
@@ -26,6 +25,7 @@ canvas.addEventListener('mousemove', (e) => {
   };
 });
 
+// إعداد الكاميرا
 let camera = { x: 0, y: 0 };
 
 socket.on('init', (data) => {
@@ -66,9 +66,9 @@ function update() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  gameState.tiles.forEach((color, key) => {
+  gameState.tiles.forEach((tile, key) => {
     const [x, y] = key.split(':').map(Number);
-    ctx.fillStyle = color;
+    ctx.fillStyle = tile.color;
     ctx.fillRect(
       x * gridSize - camera.x,
       y * gridSize - camera.y,
